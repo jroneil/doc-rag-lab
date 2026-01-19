@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS query_runs (
   backend         TEXT NOT NULL,                     -- python|java
   query           TEXT NOT NULL,
   top_k           INT NOT NULL DEFAULT 5,
-  latency_ms      INT NOT NULL,
+  latency_ms      BIGINT NOT NULL,
   retrieved_count INT NOT NULL,
   status          TEXT NOT NULL,                     -- ok|error
   error_code      TEXT,
@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS query_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_query_runs_created_at ON query_runs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_query_runs_backend_created_at ON query_runs(backend, created_at DESC);
 
 -- =========================
 -- Trigger: updated_at on documents

@@ -43,6 +43,7 @@ export default function HomePage() {
   const [metrics, setMetrics] = useState<RagResponse['metrics'] | null>(null);
   const [runs, setRuns] = useState<QueryRun[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [runsError, setRunsError] = useState<string | null>(null);
 
   const baseUrl = useMemo(() => {
     if (backend === 'python') {
@@ -52,8 +53,11 @@ export default function HomePage() {
   }, [backend]);
 
   const fetchRuns = async () => {
+    setRunsError(null);
     try {
-      const response = await fetch(`${baseUrl}/api/v1/runs?limit=20`);
+      const response = await fetch(
+        `${baseUrl}/api/v1/runs?limit=20&backend=${encodeURIComponent(backend)}`,
+      );
       if (!response.ok) {
         throw new Error('Failed to load runs');
       }
@@ -61,7 +65,7 @@ export default function HomePage() {
       setRuns(data);
     } catch (error) {
       setRuns([]);
-      setStatusMessage('Unable to load recent runs.');
+      setRunsError('Unable to load recent runs.');
     }
   };
 
@@ -147,6 +151,7 @@ export default function HomePage() {
 
       <section>
         <h2>Recent Runs</h2>
+        {runsError && <p>{runsError}</p>}
         <table className="runs-table">
           <thead>
             <tr>
@@ -158,7 +163,7 @@ export default function HomePage() {
             </tr>
           </thead>
           <tbody>
-            {runs.length === 0 ? (
+            {runs.length === 0 && !runsError ? (
               <tr>
                 <td colSpan={5}>No recent runs.</td>
               </tr>

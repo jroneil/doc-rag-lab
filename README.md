@@ -116,6 +116,18 @@ Once running:
 * Python API: [http://localhost/api/python/api/v1/health](http://localhost/api/python/api/v1/health)
 * Java API: [http://localhost/api/java/api/v1/health](http://localhost/api/java/api/v1/health)
 
+### Quick smoke checks (runs history)
+
+```bash
+curl http://localhost:8000/api/v1/runs
+curl http://localhost:8080/api/v1/runs
+curl -X POST http://localhost:8000/api/v1/rag/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"hello","topK":5}'
+```
+
+After running a query, verify rows exist in `query_runs` (for example via pgAdmin or `psql`).
+
 ---
 
 ## Current status
@@ -165,5 +177,4 @@ This README is intentionally restrained.
 That restraint signals **engineering maturity**.
 
 ---
-
 
