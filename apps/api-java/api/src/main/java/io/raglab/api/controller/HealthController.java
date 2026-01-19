@@ -1,4 +1,4 @@
-package io.raglab.api;
+package io.raglab.api.controller;
 
 
 import java.time.Instant;

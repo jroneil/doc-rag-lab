@@ -50,11 +50,9 @@ services:
     container_name: raglab-web
     build:
       context: ./apps/web/raglab
-    environment:
-      # Single-origin via nginx; UI calls these paths.
-      NEXT_PUBLIC_API_PY_BASE_URL: http://localhost/api/python
-      NEXT_PUBLIC_API_JAVA_BASE_URL: http://localhost/api/java
-      # If your Next.js build needs NODE_ENV etc, add here.
+      args:
+        NEXT_PUBLIC_API_PY_BASE_URL: http://localhost/api/python
+        NEXT_PUBLIC_API_JAVA_BASE_URL: http://localhost/api/java
     depends_on:
       - api-python
       - api-java
