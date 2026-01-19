@@ -21,7 +21,7 @@ services:
   api-python:
     container_name: raglab-api-python
     build:
-      context: ./apps/api-python
+      context: ./apps/api-python/raglab-api-python
     environment:
       DATABASE_URL: postgres://raglab:raglab@db:5432/raglab
       RAGLAB_BACKEND: python
@@ -34,7 +34,7 @@ services:
   api-java:
     container_name: raglab-api-java
     build:
-      context: ./apps/api-java
+      context: ./apps/api-java/api
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/raglab
       SPRING_DATASOURCE_USERNAME: raglab
@@ -49,7 +49,7 @@ services:
   web:
     container_name: raglab-web
     build:
-      context: ./apps/web
+      context: ./apps/web/raglab
     environment:
       # Single-origin via nginx; UI calls these paths.
       NEXT_PUBLIC_API_PY_BASE_URL: http://localhost/api/python

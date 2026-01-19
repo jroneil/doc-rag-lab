@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: raglab-api-java
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/raglab}
+    username: ${SPRING_DATASOURCE_USERNAME:raglab}
+    password: ${SPRING_DATASOURCE_PASSWORD:raglab}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
