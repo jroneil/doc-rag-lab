@@ -86,22 +86,19 @@ END $$;
 -- =========================
 
 CREATE TABLE IF NOT EXISTS query_runs (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  backend        TEXT NOT NULL,                     -- python|java
-  query_text     TEXT NOT NULL,
-  top_k          INT  NOT NULL DEFAULT 5,
-  filters        JSONB NOT NULL DEFAULT '{}'::jsonb,
-  answer_text    TEXT,
-  citations      JSONB NOT NULL DEFAULT '[]'::jsonb, -- array of citation objects
-  metrics        JSONB NOT NULL DEFAULT '{}'::jsonb,  -- latencyMs, tokens, model, etc.
-  error          JSONB,                               -- standardized error payload
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  backend         TEXT NOT NULL,                     -- python|java
+  query           TEXT NOT NULL,
+  top_k           INT NOT NULL DEFAULT 5,
+  latency_ms      INT NOT NULL,
+  retrieved_count INT NOT NULL,
+  status          TEXT NOT NULL,                     -- ok|error
+  error_code      TEXT,
+  error_message   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_query_runs_created_at ON query_runs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_query_runs_backend ON query_runs(backend);
-CREATE INDEX IF NOT EXISTS idx_query_runs_filters_gin ON query_runs USING GIN (filters);
-CREATE INDEX IF NOT EXISTS idx_query_runs_metrics_gin ON query_runs USING GIN (metrics);
 
 -- =========================
 -- Trigger: updated_at on documents
