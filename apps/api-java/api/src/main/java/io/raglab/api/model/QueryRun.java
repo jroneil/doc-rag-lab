@@ -8,7 +8,7 @@ public class QueryRun {
   private String backend;
   private String query;
   private int topK;
-  private int latencyMs;
+  private long latencyMs;
   private int retrievedCount;
   private String status;
   private String errorCode;
@@ -22,7 +22,7 @@ public class QueryRun {
       String backend,
       String query,
       int topK,
-      int latencyMs,
+      long latencyMs,
       int retrievedCount,
       String status,
       String errorCode,
@@ -45,7 +45,7 @@ public class QueryRun {
   public String getBackend() { return backend; }
   public String getQuery() { return query; }
   public int getTopK() { return topK; }
-  public int getLatencyMs() { return latencyMs; }
+  public long getLatencyMs() { return latencyMs; }
   public int getRetrievedCount() { return retrievedCount; }
   public String getStatus() { return status; }
   public String getErrorCode() { return errorCode; }
@@ -56,7 +56,7 @@ public class QueryRun {
   public void setBackend(String backend) { this.backend = backend; }
   public void setQuery(String query) { this.query = query; }
   public void setTopK(int topK) { this.topK = topK; }
-  public void setLatencyMs(int latencyMs) { this.latencyMs = latencyMs; }
+  public void setLatencyMs(long latencyMs) { this.latencyMs = latencyMs; }
   public void setRetrievedCount(int retrievedCount) { this.retrievedCount = retrievedCount; }
   public void setStatus(String status) { this.status = status; }
   public void setErrorCode(String errorCode) { this.errorCode = errorCode; }

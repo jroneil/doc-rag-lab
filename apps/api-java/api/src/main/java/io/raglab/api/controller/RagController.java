@@ -3,6 +3,8 @@ package io.raglab.api.controller;
 import io.raglab.api.model.RagQueryRequest;
 import io.raglab.api.model.RagQueryResponse;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,6 +15,7 @@ import java.util.Map;
 @RequestMapping("/api/v1/rag")
 public class RagController {
   private final JdbcTemplate jdbcTemplate;
+  private static final Logger logger = LoggerFactory.getLogger(RagController.class);
 
   public RagController(JdbcTemplate jdbcTemplate) {
     this.jdbcTemplate = jdbcTemplate;
@@ -21,6 +24,11 @@ public class RagController {
   @PostMapping("/query")
   public RagQueryResponse query(@Valid @RequestBody RagQueryRequest req) {
     long start = System.nanoTime();
+    String status = "ok";
+    String errorCode = null;
+    String errorMessage = null;
+    int retrievedCount = 0;
+    long latencyMs = 0;
 
     try {
       boolean returnCitations = (req.getOptions() == null) || req.getOptions().isReturnCitations();
@@ -44,13 +52,14 @@ public class RagController {
         );
       }
 
-      int latencyMs = (int) ((System.nanoTime() - start) / 1_000_000);
+      retrievedCount = citations.size();
+      latencyMs = (System.nanoTime() - start) / 1_000_000;
       latencyMs = Math.max(latencyMs, 1);
 
       RagQueryResponse.Metrics metrics = new RagQueryResponse.Metrics(
           "java",
-          latencyMs,
-          req.getTopK(),
+          (int) latencyMs,
+          retrievedCount,
           "stub",
           null,
           null,
@@ -66,36 +75,34 @@ public class RagController {
           debug
       );
 
-      insertQueryRun(
-          req.getQuery(),
-          req.getTopK(),
-          metrics.getLatencyMs(),
-          metrics.getRetrievedCount(),
-          "ok",
-          null,
-          null
-      );
-
       return response;
     } catch (RuntimeException ex) {
-      int latencyMs = (int) ((System.nanoTime() - start) / 1_000_000);
+      status = "error";
+      errorCode = "INTERNAL_ERROR";
+      errorMessage = ex.toString();
+      latencyMs = (System.nanoTime() - start) / 1_000_000;
+      throw ex;
+    } finally {
+      if (latencyMs == 0) {
+        latencyMs = (System.nanoTime() - start) / 1_000_000;
+      }
+      latencyMs = Math.max(latencyMs, 1);
       insertQueryRun(
           req.getQuery(),
           req.getTopK(),
-          Math.max(latencyMs, 1),
-          0,
-          "error",
-          "INTERNAL_ERROR",
-          "Unexpected server error"
+          latencyMs,
+          retrievedCount,
+          status,
+          errorCode,
+          errorMessage
       );
-      throw ex;
     }
   }
 
   private void insertQueryRun(
       String query,
       int topK,
-      int latencyMs,
+      long latencyMs,
       int retrievedCount,
       String status,
       String errorCode,
@@ -125,8 +132,13 @@ public class RagController {
           errorCode,
           errorMessage
       );
-    } catch (RuntimeException ignored) {
-      // Best effort logging.
+    } catch (RuntimeException ex) {
+      logger.warn(
+          "Failed to insert query run (backend=java status={} errorCode={}).",
+          status,
+          errorCode,
+          ex
+      );
     }
   }
 }
