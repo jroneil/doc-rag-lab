@@ -1,0 +1,77 @@
+ 
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: raglab-db
+    environment:
+      POSTGRES_DB: raglab
+      POSTGRES_USER: raglab
+      POSTGRES_PASSWORD: raglab
+    ports:
+      - "5432:5432"
+    volumes:
+      - raglab_db_data:/var/lib/postgresql/data
+      - ./infra/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raglab -d raglab"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api-python:
+    container_name: raglab-api-python
+    build:
+      context: ./apps/api-python
+    environment:
+      DATABASE_URL: postgres://raglab:raglab@db:5432/raglab
+      RAGLAB_BACKEND: python
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  api-java:
+    container_name: raglab-api-java
+    build:
+      context: ./apps/api-java
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/raglab
+      SPRING_DATASOURCE_USERNAME: raglab
+      SPRING_DATASOURCE_PASSWORD: raglab
+      RAGLAB_BACKEND: java
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  web:
+    container_name: raglab-web
+    build:
+      context: ./apps/web
+    environment:
+      # Single-origin via nginx; UI calls these paths.
+      NEXT_PUBLIC_API_PY_BASE_URL: http://localhost/api/python
+      NEXT_PUBLIC_API_JAVA_BASE_URL: http://localhost/api/java
+      # If your Next.js build needs NODE_ENV etc, add here.
+    depends_on:
+      - api-python
+      - api-java
+    ports:
+      - "3000:3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: raglab-nginx
+    depends_on:
+      - web
+      - api-python
+      - api-java
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  raglab_db_data:
