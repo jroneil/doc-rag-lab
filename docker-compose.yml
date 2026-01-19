@@ -71,5 +71,22 @@ services:
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: raglab-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@raglab.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+
 volumes:
   raglab_db_data:
+  pgadmin_data:
