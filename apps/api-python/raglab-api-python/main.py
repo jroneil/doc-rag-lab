@@ -1,10 +1,7 @@
 from datetime import datetime, timezone
-import json
 import logging
 import os
 import time
-import urllib.error
-import urllib.request
 from typing import Any, Dict, List, Optional, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -12,8 +9,11 @@ from fastapi.exception_handlers import http_exception_handler as fastapi_http_ex
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+
 import psycopg
 from psycopg.rows import dict_row
+
+from openai import OpenAI
 
 
 app = FastAPI(title="raglab-api-python", version="1.0.0")
@@ -45,15 +45,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled exception")
     return JSONResponse(
         status_code=500,
         content=error_envelope("INTERNAL_ERROR", "Unexpected server error"),
     )
 
-
-# ----------------------------
-# Models (match docs/API.md)
-# ----------------------------
 
 Backend = Literal["python", "java"]
 
@@ -121,32 +118,28 @@ class QueryRun(BaseModel):
     errorMessage: Optional[str] = None
 
 
-# ----------------------------
-# Endpoints
-# ----------------------------
-
 @app.get("/api/v1/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(time=datetime.now(timezone.utc).isoformat())
 
 
+# ---------------------------
+# OpenAI client (main)
+# ---------------------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+openai_client: Optional[OpenAI] = None
+if OPENAI_API_KEY:
+    openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+
 def get_db_connection() -> Optional[psycopg.Connection]:
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
-        host = os.getenv("DB_HOST") or os.getenv("PGHOST")
-        port = os.getenv("DB_PORT") or os.getenv("PGPORT")
-        user = os.getenv("DB_USER") or os.getenv("PGUSER")
-        password = os.getenv("DB_PASSWORD") or os.getenv("PGPASSWORD")
-        dbname = os.getenv("DB_NAME") or os.getenv("PGDATABASE")
-        if not host or not user or not dbname:
-            return None
-        conn_kwargs: Dict[str, Any] = {"host": host, "user": user, "dbname": dbname}
-        if port:
-            conn_kwargs["port"] = int(port)
-        if password:
-            conn_kwargs["password"] = password
-        return psycopg.connect(**conn_kwargs)
+        return None
     return psycopg.connect(database_url)
+
 
 def clear_query_runs() -> None:
     conn = get_db_connection()
@@ -159,8 +152,6 @@ def clear_query_runs() -> None:
                 cur.execute("TRUNCATE TABLE query_runs")
     finally:
         conn.close()
-
-
 
 
 def insert_query_run(
@@ -177,6 +168,7 @@ def insert_query_run(
     conn = get_db_connection()
     if conn is None:
         return
+
     try:
         with conn:
             with conn.cursor() as cur:
@@ -207,20 +199,16 @@ def insert_query_run(
                     ),
                 )
     except psycopg.Error as exc:
-        logger.warning(
-            "Failed to insert query run (backend=%s status=%s error_code=%s).",
-            backend,
-            status,
-            error_code,
-            exc_info=exc,
-        )
+        logger.warning("Failed to insert query run", exc_info=exc)
     finally:
         conn.close()
+
 
 def fetch_query_runs(limit: int, backend: Optional[Backend]) -> List[QueryRun]:
     conn = get_db_connection()
     if conn is None:
         return []
+
     try:
         with conn:
             with conn.cursor(row_factory=dict_row) as cur:
@@ -230,6 +218,7 @@ def fetch_query_runs(limit: int, backend: Optional[Backend]) -> List[QueryRun]:
                     backend_clause = "WHERE backend = %s"
                     params.append(backend)
                 params.append(limit)
+
                 cur.execute(
                     f"""
                     SELECT
@@ -251,6 +240,7 @@ def fetch_query_runs(limit: int, backend: Optional[Backend]) -> List[QueryRun]:
                     tuple(params),
                 )
                 rows = cur.fetchall()
+
         return [
             QueryRun(
                 id=str(row["id"]),
@@ -267,31 +257,63 @@ def fetch_query_runs(limit: int, backend: Optional[Backend]) -> List[QueryRun]:
             for row in rows
         ]
     except psycopg.Error as exc:
-        logger.warning("Failed to fetch query runs.", exc_info=exc)
+        logger.warning("Failed to fetch query runs", exc_info=exc)
         return []
     finally:
         conn.close()
 
 
-def extract_error_details(exc: HTTPException) -> tuple[Optional[str], Optional[str]]:
-    detail = exc.detail
-    if isinstance(detail, dict):
-        error_payload = detail.get("error")
-        if isinstance(error_payload, dict):
-            return error_payload.get("code"), error_payload.get("message")
-    return None, None
+def call_openai_answer(query: str) -> Dict[str, Any]:
+    """
+    Calls OpenAI Chat Completions and returns:
+      {"answer": str, "usage": dict}
+    """
+    if openai_client is None:
+        raise HTTPException(
+            status_code=500,
+            detail=error_envelope("AI_ERROR", "OPENAI_API_KEY is not configured"),
+        )
+
+    prompt = f"Answer the following question clearly and concisely:\n\n{query}"
+
+    try:
+        resp = openai_client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful AI assistant."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+        )
+    except Exception as e:
+        # Keep your envelope consistent. If you want, we can map common cases later.
+        raise HTTPException(
+            status_code=502,
+            detail=error_envelope("AI_UPSTREAM_ERROR", f"OpenAI request failed: {e}"),
+        ) from e
+
+    answer = resp.choices[0].message.content
+    if not isinstance(answer, str) or not answer.strip():
+        raise HTTPException(
+            status_code=500,
+            detail=error_envelope("AI_ERROR", "OpenAI response was invalid"),
+        )
+
+    usage = getattr(resp, "usage", None)
+    usage_dict = usage.model_dump() if usage else {}
+
+    return {"answer": answer.strip(), "usage": usage_dict}
 
 
 @app.post("/api/v1/rag/query", response_model=RagQueryResponse)
 def rag_query(req: RagQueryRequest) -> RagQueryResponse:
-    # Stub implementation for Day 1:
-    # Return deterministic, obviously-fake but correctly-shaped output.
     start_time = time.perf_counter()
     status: Literal["ok", "error"] = "ok"
     error_code: Optional[str] = None
     error_message: Optional[str] = None
     retrieved_count = 0
     latency_ms = 0
+
     try:
         if not req.query.strip():
             raise HTTPException(
@@ -299,110 +321,62 @@ def rag_query(req: RagQueryRequest) -> RagQueryResponse:
                 detail={"error": {"code": "BAD_REQUEST", "message": "query is required", "details": {"field": "query"}}},
             )
 
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail=error_envelope("AI_ERROR", "AI API key is not configured"),
-            )
+        # ---- MAIN LLM CALL (OpenAI) ----
+        result = call_openai_answer(req.query)
+        answer: str = result["answer"]
+        usage: Dict[str, Any] = result["usage"]
 
-        model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions")
-        prompt = f"Answer the following question clearly and concisely:\n\n{req.query}"
-
-        request_payload = {
-            "model": model_name,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-        }
-
-        try:
-            request = urllib.request.Request(
-                base_url,
-                data=json.dumps(request_payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(request, timeout=20) as response:
-                response_payload = json.loads(response.read().decode("utf-8"))
-        except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=error_envelope("AI_ERROR", "AI request failed"),
-            ) from exc
-
-        choices = response_payload.get("choices", [])
-        if not choices:
-            raise HTTPException(
-                status_code=500,
-                detail=error_envelope("AI_ERROR", "AI response was empty"),
-            )
-
-        message = choices[0].get("message") or {}
-        answer = message.get("content")
-        if not isinstance(answer, str) or not answer.strip():
-            raise HTTPException(
-                status_code=500,
-                detail=error_envelope("AI_ERROR", "AI response was invalid"),
-            )
-
-        usage = response_payload.get("usage") or {}
-
-        citations = []
-        if (req.options is None) or req.options.returnCitations:
+        citations: List[Citation] = []
+        if req.options is None or req.options.returnCitations:
             citations = [
                 Citation(
-                    docId=(req.filters.docIds[0] if req.filters and req.filters.docIds else "demo-doc"),
+                    docId="demo-doc",
                     chunkId="demo-doc#1",
-                    text="(stub) This is a placeholder citation chunk returned by the Python backend.",
+                    text="(stub) Placeholder citation.",
                     score=0.80,
                     meta={"source": "stub"},
                 )
             ]
 
         retrieved_count = len(citations)
-        latency_ms = int((time.perf_counter() - start_time) * 1000)
-        latency_ms = max(latency_ms, 1)
+        latency_ms = max(int((time.perf_counter() - start_time) * 1000), 1)
+
         metrics = Metrics(
             backend="python",
             latencyMs=latency_ms,
             retrievedCount=retrieved_count,
-            model=model_name,
+            model=OPENAI_MODEL,
             promptTokens=usage.get("prompt_tokens"),
             completionTokens=usage.get("completion_tokens"),
             totalTokens=usage.get("total_tokens"),
         )
 
-        debug = {"note": "stub response"} if (req.options and req.options.returnDebug) else None
-
-        response = RagQueryResponse(
-            answer=answer.strip(),
+        return RagQueryResponse(
+            answer=answer,
             citations=citations,
             metrics=metrics,
-            debug=debug,
+            debug={"note": "openai response"} if req.options and req.options.returnDebug else None,
         )
 
-        return response
     except HTTPException as exc:
         status = "error"
-        error_code, error_message = extract_error_details(exc)
+        if isinstance(exc.detail, dict):
+            err = exc.detail.get("error")
+            if isinstance(err, dict):
+                error_code = err.get("code")
+                error_message = err.get("message")
         error_code = error_code or "INTERNAL_ERROR"
         error_message = error_message or str(exc)
-        latency_ms = int((time.perf_counter() - start_time) * 1000)
         raise
+
     except Exception as exc:
         status = "error"
         error_code = "INTERNAL_ERROR"
         error_message = str(exc)
-        latency_ms = int((time.perf_counter() - start_time) * 1000)
         raise
+
     finally:
-        if latency_ms == 0:
-            latency_ms = int((time.perf_counter() - start_time) * 1000)
-        latency_ms = max(latency_ms, 1)
+        latency_ms = max(int((time.perf_counter() - start_time) * 1000), 1)
         try:
             insert_query_run(
                 backend="python",
@@ -415,7 +389,7 @@ def rag_query(req: RagQueryRequest) -> RagQueryResponse:
                 error_message=error_message,
             )
         except Exception as exc:
-            logger.warning("Failed to record query run.", exc_info=exc)
+            logger.warning("Failed to record query run", exc_info=exc)
 
 
 @app.get("/api/v1/runs", response_model=List[QueryRun])
@@ -425,7 +399,6 @@ def list_runs(
 ) -> List[QueryRun]:
     return fetch_query_runs(limit, backend)
 
-from fastapi import HTTPException
 
 @app.post("/api/v1/runs/clear")
 def clear_runs():
