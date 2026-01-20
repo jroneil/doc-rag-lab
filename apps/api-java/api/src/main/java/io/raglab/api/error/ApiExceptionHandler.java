@@ -16,6 +16,12 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+  @ExceptionHandler(ApiErrorException.class)
+  public ResponseEntity<ErrorEnvelope> handleApiError(ApiErrorException ex) {
+    return ResponseEntity.status(ex.getStatus())
+        .body(new ErrorEnvelope(ex.getErrorBody()));
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ErrorEnvelope> handleValidation(MethodArgumentNotValidException ex) {
     List<Map<String, Object>> fieldErrors = ex.getBindingResult().getFieldErrors().stream()

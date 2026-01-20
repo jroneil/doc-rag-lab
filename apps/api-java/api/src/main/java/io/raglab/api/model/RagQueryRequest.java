@@ -4,14 +4,12 @@ package io.raglab.api.model;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
 
 
 public class RagQueryRequest {
 
-  @NotBlank
   private String query;
 
   @Min(1)
