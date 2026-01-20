@@ -1,7 +1,10 @@
 from datetime import datetime, timezone
+import json
 import logging
 import os
 import time
+import urllib.error
+import urllib.request
 from typing import Any, Dict, List, Optional, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -296,6 +299,58 @@ def rag_query(req: RagQueryRequest) -> RagQueryResponse:
                 detail={"error": {"code": "BAD_REQUEST", "message": "query is required", "details": {"field": "query"}}},
             )
 
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail=error_envelope("AI_ERROR", "AI API key is not configured"),
+            )
+
+        model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1/chat/completions")
+        prompt = f"Answer the following question clearly and concisely:\n\n{req.query}"
+
+        request_payload = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }
+
+        try:
+            request = urllib.request.Request(
+                base_url,
+                data=json.dumps(request_payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=20) as response:
+                response_payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.HTTPError, urllib.error.URLError, ValueError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=error_envelope("AI_ERROR", "AI request failed"),
+            ) from exc
+
+        choices = response_payload.get("choices", [])
+        if not choices:
+            raise HTTPException(
+                status_code=500,
+                detail=error_envelope("AI_ERROR", "AI response was empty"),
+            )
+
+        message = choices[0].get("message") or {}
+        answer = message.get("content")
+        if not isinstance(answer, str) or not answer.strip():
+            raise HTTPException(
+                status_code=500,
+                detail=error_envelope("AI_ERROR", "AI response was invalid"),
+            )
+
+        usage = response_payload.get("usage") or {}
+
         citations = []
         if (req.options is None) or req.options.returnCitations:
             citations = [
@@ -315,16 +370,16 @@ def rag_query(req: RagQueryRequest) -> RagQueryResponse:
             backend="python",
             latencyMs=latency_ms,
             retrievedCount=retrieved_count,
-            model="stub",
-            promptTokens=None,
-            completionTokens=None,
-            totalTokens=None,
+            model=model_name,
+            promptTokens=usage.get("prompt_tokens"),
+            completionTokens=usage.get("completion_tokens"),
+            totalTokens=usage.get("total_tokens"),
         )
 
         debug = {"note": "stub response"} if (req.options and req.options.returnDebug) else None
 
         response = RagQueryResponse(
-            answer=f"(stub) Python backend received: {req.query}",
+            answer=answer.strip(),
             citations=citations,
             metrics=metrics,
             debug=debug,
@@ -333,9 +388,9 @@ def rag_query(req: RagQueryRequest) -> RagQueryResponse:
         return response
     except HTTPException as exc:
         status = "error"
-        error_code, _ = extract_error_details(exc)
+        error_code, error_message = extract_error_details(exc)
         error_code = error_code or "INTERNAL_ERROR"
-        error_message = str(exc)
+        error_message = error_message or str(exc)
         latency_ms = int((time.perf_counter() - start_time) * 1000)
         raise
     except Exception as exc:
