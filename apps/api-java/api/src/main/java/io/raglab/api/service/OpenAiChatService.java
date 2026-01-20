@@ -4,7 +4,7 @@ import com.openai.client.OpenAIClient;
 import com.openai.models.ChatCompletion;
 import com.openai.models.ChatCompletionCreateParams;
 import com.openai.models.ChatCompletionMessageParam;
-import com.openai.models.ChatCompletionUsage;
+import com.openai.models.CompletionUsage;
 import io.raglab.api.error.ApiErrorException;
 import io.raglab.api.error.ErrorBody;
 import org.springframework.http.HttpStatus;
@@ -73,7 +73,7 @@ public class OpenAiChatService {
       );
     }
 
-    ChatCompletionUsage usage = response.usage();
+    CompletionUsage usage = response.usage();
     Integer promptTokens = usage != null ? usage.promptTokens() : null;
     Integer completionTokens = usage != null ? usage.completionTokens() : null;
     Integer totalTokens = usage != null ? usage.totalTokens() : null;
