@@ -5,11 +5,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class RunsController {
@@ -23,8 +25,7 @@ public class RunsController {
   @GetMapping("/api/v1/runs")
   public List<QueryRun> runs(
       @RequestParam(defaultValue = "25") int limit,
-      @RequestParam(required = false) String backend
-  ) {
+      @RequestParam(required = false) String backend) {
     int safeLimit = Math.min(Math.max(limit, 1), 100);
     String backendClause = "";
     List<Object> params = new ArrayList<>();
@@ -64,13 +65,22 @@ public class RunsController {
               rs.getInt("retrieved_count"),
               rs.getString("status"),
               rs.getString("error_code"),
-              rs.getString("error_message")
-          ),
-          params.toArray()
-      );
+              rs.getString("error_message")),
+          params.toArray());
     } catch (RuntimeException ex) {
       logger.warn("Failed to fetch query runs (backend={}).", backend, ex);
       return List.of();
     }
   }
+
+ @PostMapping("/api/v1/runs/clear")
+public Map<String, Object> clearRuns() {
+  try {
+    jdbcTemplate.execute("TRUNCATE TABLE query_runs");
+    return Map.of("ok", true);
+  } catch (RuntimeException ex) {
+    logger.warn("Failed to clear query_runs.", ex);
+    return Map.of("ok", false);
+  }
+}
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ragQuery, getRuns, type BackendKey, type QueryRun, type RagQueryResponse } from '../lib/raglabApi';
+import { useCallback, useEffect, useState } from 'react';
+import { ragQuery, getRuns, clearRuns, type BackendKey, type QueryRun } from '../lib/raglabApi';
 
 type RagResponse = {
   answer: string;
@@ -27,7 +27,7 @@ export default function HomePage() {
   const [runsError, setRunsError] = useState<string | null>(null);
 
 
-  const fetchRuns = async () => {
+  const fetchRuns = useCallback(async () => {
     setRunsError(null);
     try {
       const data = await getRuns(backend, 20);
@@ -36,7 +36,8 @@ export default function HomePage() {
       setRuns([]);
       setRunsError('Unable to load recent runs.');
     }
-  };
+  }, [backend]);
+
 
   const handleSubmit = async () => {
     setStatusMessage(null);
@@ -58,9 +59,25 @@ export default function HomePage() {
     }
   };
 
+  const handleClearRuns = async () => {
+    setRunsError(null);
+    setStatusMessage(null);
+    try {
+      await clearRuns(backend);
+      await fetchRuns();
+    } catch (e) {
+      setStatusMessage(e instanceof Error ? e.message : 'Clear failed');
+    }
+  };
+
   useEffect(() => {
+    setAnswer('Run a query to see the response here.');
+    setMetrics(null);
+    setStatusMessage(null);
     fetchRuns();
-  }, [backend]);
+  }, [backend, fetchRuns]);
+
+
 
   return (
     <div>
@@ -108,7 +125,12 @@ export default function HomePage() {
       </section>
 
       <section>
-        <h2>Recent Runs</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ margin: 0 }}>Recent Runs</h2>
+          <button type="button" onClick={handleClearRuns}>
+            Clear runs
+          </button>
+        </div>
         {runsError && <p>{runsError}</p>}
         <table className="runs-table">
           <thead>

@@ -145,6 +145,20 @@ def get_db_connection() -> Optional[psycopg.Connection]:
         return psycopg.connect(**conn_kwargs)
     return psycopg.connect(database_url)
 
+def clear_query_runs() -> None:
+    conn = get_db_connection()
+    if conn is None:
+        raise RuntimeError("Database connection is not configured")
+
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("TRUNCATE TABLE query_runs")
+    finally:
+        conn.close()
+
+
+
 
 def insert_query_run(
     *,
@@ -355,3 +369,14 @@ def list_runs(
     backend: Optional[Backend] = Query(default=None),
 ) -> List[QueryRun]:
     return fetch_query_runs(limit, backend)
+
+from fastapi import HTTPException
+
+@app.post("/api/v1/runs/clear")
+def clear_runs():
+    try:
+        clear_query_runs()
+        return {"ok": True}
+    except Exception as e:
+        logger.exception("Failed to clear query_runs")
+        raise HTTPException(status_code=500, detail=str(e))
