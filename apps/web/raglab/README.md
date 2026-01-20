@@ -1,36 +1,43 @@
-.This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RagLab UI (Next.js)
 
-## Getting Started
+Clean, single-screen RAG demo UI that proxies requests through Next.js to either the Python FastAPI or Java Spring Boot backend.
 
-First, run the development server:
+## Requirements
+
+- Node.js 20+
+- Python FastAPI backend (default: `http://localhost:8000`)
+- Java Spring Boot backend (default: `http://localhost:8080`)
+
+## Environment Variables
+
+Create a `.env.local` file in `apps/web/raglab`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+PY_API_BASE_URL=http://localhost:8000
+JAVA_API_BASE_URL=http://localhost:8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run the Dev Server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `http://localhost:3000`.
 
-## Learn More
+## Example Backend Curl
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+curl -s http://localhost:8000/api/v1/rag/query \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What is the warranty period?","topK":5}' | jq
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Expected Screen Behavior
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Left panel: question input, topK selector, backend toggle, and options switches.
+- Right panel: answer, metrics (latency, model, tokens), and any API errors.
+- Citations panel: lists retrieved chunks when `returnCitations` is enabled.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All browser requests hit `/api/rag` on the Next.js server, which selects the backend using the environment variables above.
