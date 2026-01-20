@@ -2,17 +2,13 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# If you use npm:
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 # ---------- build ----------
 FROM node:20-alpine AS builder
-ARG NEXT_PUBLIC_API_PY_BASE_URL
-ARG NEXT_PUBLIC_API_JAVA_BASE_URL
-
-ENV NEXT_PUBLIC_API_PY_BASE_URL=$NEXT_PUBLIC_API_PY_BASE_URL
-ENV NEXT_PUBLIC_API_JAVA_BASE_URL=$NEXT_PUBLIC_API_JAVA_BASE_URL
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -23,12 +19,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Next.js runtime needs these
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/next.config.* ./
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
