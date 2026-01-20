@@ -125,6 +125,8 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+!apps/web/raglab/lib/
+!apps/web/raglab/lib/**
 
 # Virtual environments
 venv/
