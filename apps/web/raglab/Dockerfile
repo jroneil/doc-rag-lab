@@ -8,11 +8,11 @@ WORKDIR /app
 
 # ---------- build ----------
 FROM node:20-alpine AS builder
-ARG NEXT_PUBLIC_API_PY_BASE_URL
-ARG NEXT_PUBLIC_API_JAVA_BASE_URL
+ARG PY_API_BASE_URL
+ARG JAVA_API_BASE_URL
 
-ENV API_PY_BASE_URL=$API_PY_BASE_URL
-ENV JAVA_BASE_URL=$API_JAVA_BASE_URL
+ENV PY_API_BASE_URL=$PY_API_BASE_URL
+ENV JAVA_API_BASE_URL=$JAVA_API_BASE_URL
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -22,6 +22,10 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ARG PY_API_BASE_URL
+ARG JAVA_API_BASE_URL
+ENV PY_API_BASE_URL=$PY_API_BASE_URL
+ENV JAVA_API_BASE_URL=$JAVA_API_BASE_URL
 
 # Next.js runtime needs these
 COPY --from=builder /app/package.json ./
