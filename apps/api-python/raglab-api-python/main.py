@@ -166,6 +166,7 @@ def insert_query_run(
                 cur.execute(
                     """
                     INSERT INTO query_runs (
+                        id,
                         backend,
                         query,
                         top_k,
@@ -175,7 +176,7 @@ def insert_query_run(
                         error_code,
                         error_message
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         backend,

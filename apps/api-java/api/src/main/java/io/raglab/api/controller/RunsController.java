@@ -29,14 +29,13 @@ public class RunsController {
     String backendClause = "";
     List<Object> params = new ArrayList<>();
     if (backend != null && !backend.isBlank()) {
-      backendClause = "WHERE backend = ?";
+      backendClause = " WHERE backend = ? ";
       params.add(backend);
     }
     params.add(safeLimit);
 
     try {
-      return jdbcTemplate.query(
-          """
+      String sql = """
           SELECT
             id,
             created_at,
@@ -52,7 +51,9 @@ public class RunsController {
           """ + backendClause + """
           ORDER BY created_at DESC
           LIMIT ?
-          """,
+          """;
+      return jdbcTemplate.query(
+          sql,
           (rs, rowNum) -> new QueryRun(
               rs.getObject("id").toString(),
               rs.getTimestamp("created_at").toInstant(),

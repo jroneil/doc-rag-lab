@@ -45,7 +45,7 @@ public class RagController {
             new RagQueryResponse.Citation(
                 docId,
                 "demo-doc#1",
-                "(stub) This is a placeholder citation chunk returned by the Java backend.",
+                "(stub) This is a placeholder citation chunk returned by Java backend.",
                 0.80,
                 Map.of("source", "stub")
             )
@@ -112,6 +112,7 @@ public class RagController {
       jdbcTemplate.update(
           """
           INSERT INTO query_runs (
+            id,
             backend,
             query,
             top_k,
@@ -121,7 +122,7 @@ public class RagController {
             error_code,
             error_message
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, ?)
           """,
           "java",
           query,

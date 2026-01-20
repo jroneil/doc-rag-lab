@@ -1,43 +1,24 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-
-type Backend = 'python' | 'java';
-
-type QueryRun = {
-  id: string;
-  createdAt: string;
-  backend: Backend;
-  query: string;
-  topK: number;
-  latencyMs: number;
-  retrievedCount: number;
-  status: 'ok' | 'error';
-  errorCode?: string | null;
-  errorMessage?: string | null;
-};
+import { useEffect, useState } from 'react';
+import { ragQuery, getRuns, type BackendKey, type QueryRun, type RagQueryResponse } from '../lib/raglabApi';
 
 type RagResponse = {
   answer: string;
   metrics: {
-    backend: Backend;
+    backend: BackendKey;
     latencyMs: number;
     retrievedCount: number;
   };
 };
 
-const backendLabels: Record<Backend, string> = {
+const backendLabels: Record<BackendKey, string> = {
   python: 'Python',
   java: 'Java',
 };
 
-const baseUrlFallbacks: Record<Backend, string> = {
-  python: '/api/python',
-  java: '/api/java',
-};
-
 export default function HomePage() {
-  const [backend, setBackend] = useState<Backend>('python');
+  const [backend, setBackend] = useState<BackendKey>('python');
   const [query, setQuery] = useState('');
   const [answer, setAnswer] = useState('Run a query to see the response here.');
   const [metrics, setMetrics] = useState<RagResponse['metrics'] | null>(null);
@@ -45,23 +26,11 @@ export default function HomePage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
 
-  const baseUrl = useMemo(() => {
-    if (backend === 'python') {
-      return process.env.NEXT_PUBLIC_API_PY_BASE_URL ?? baseUrlFallbacks.python;
-    }
-    return process.env.NEXT_PUBLIC_API_JAVA_BASE_URL ?? baseUrlFallbacks.java;
-  }, [backend]);
 
   const fetchRuns = async () => {
     setRunsError(null);
     try {
-      const response = await fetch(
-        `${baseUrl}/api/v1/runs?limit=20&backend=${encodeURIComponent(backend)}`,
-      );
-      if (!response.ok) {
-        throw new Error('Failed to load runs');
-      }
-      const data = (await response.json()) as QueryRun[];
+      const data = await getRuns(backend, 20);
       setRuns(data);
     } catch (error) {
       setRuns([]);
@@ -72,25 +41,14 @@ export default function HomePage() {
   const handleSubmit = async () => {
     setStatusMessage(null);
     try {
-      const response = await fetch(`${baseUrl}/api/v1/rag/query`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const payload = await ragQuery(backend, {
+        query,
+        topK: 5,
+        options: {
+          returnCitations: false,
+          returnDebug: false,
         },
-        body: JSON.stringify({
-          query,
-          topK: 5,
-          options: {
-            returnCitations: false,
-            returnDebug: false,
-          },
-        }),
       });
-
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error?.message ?? 'Query failed');
-      }
 
       setAnswer(payload.answer);
       setMetrics(payload.metrics);
@@ -102,7 +60,7 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchRuns();
-  }, [baseUrl]);
+  }, [backend]);
 
   return (
     <div>
@@ -112,7 +70,7 @@ export default function HomePage() {
         <select
           id="backend"
           value={backend}
-          onChange={(event) => setBackend(event.target.value as Backend)}
+          onChange={(event) => setBackend(event.target.value as BackendKey)}
         >
           {Object.entries(backendLabels).map(([value, label]) => (
             <option key={value} value={value}>
