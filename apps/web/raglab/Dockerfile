@@ -2,17 +2,17 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# If you use npm:
-COPY package.json package-lock.json* ./
-RUN npm ci
+    # If you use npm:
+    COPY package.json package-lock.json* ./
+    RUN npm install
 
 # ---------- build ----------
 FROM node:20-alpine AS builder
 ARG NEXT_PUBLIC_API_PY_BASE_URL
 ARG NEXT_PUBLIC_API_JAVA_BASE_URL
 
-ENV NEXT_PUBLIC_API_PY_BASE_URL=$NEXT_PUBLIC_API_PY_BASE_URL
-ENV NEXT_PUBLIC_API_JAVA_BASE_URL=$NEXT_PUBLIC_API_JAVA_BASE_URL
+ENV API_PY_BASE_URL=$API_PY_BASE_URL
+ENV JAVA_BASE_URL=$API_JAVA_BASE_URL
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

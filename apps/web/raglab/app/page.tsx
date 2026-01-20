@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { BackendKey, ErrorEnvelope, RagResponse } from '@/lib/types';
+import type { BackendKey, ErrorEnvelope, RagResponse } from '../lib/types';
 import { cn } from '@/lib/utils';
 
 const backendOptions: Array<{ label: string; value: BackendKey }> = [
