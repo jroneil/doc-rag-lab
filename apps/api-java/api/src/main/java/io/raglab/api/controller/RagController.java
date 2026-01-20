@@ -1,10 +1,14 @@
 package io.raglab.api.controller;
 
+import io.raglab.api.error.ApiErrorException;
+import io.raglab.api.error.ErrorBody;
 import io.raglab.api.model.RagQueryRequest;
 import io.raglab.api.model.RagQueryResponse;
+import io.raglab.api.service.OpenAiChatService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,10 +19,12 @@ import java.util.Map;
 @RequestMapping("/api/v1/rag")
 public class RagController {
   private final JdbcTemplate jdbcTemplate;
+  private final OpenAiChatService openAiChatService;
   private static final Logger logger = LoggerFactory.getLogger(RagController.class);
 
-  public RagController(JdbcTemplate jdbcTemplate) {
+  public RagController(JdbcTemplate jdbcTemplate, OpenAiChatService openAiChatService) {
     this.jdbcTemplate = jdbcTemplate;
+    this.openAiChatService = openAiChatService;
   }
 
   @PostMapping("/query")
@@ -31,8 +37,17 @@ public class RagController {
     long latencyMs = 0;
 
     try {
+      if (req.getQuery() == null || req.getQuery().isBlank()) {
+        throw new ApiErrorException(
+            HttpStatus.BAD_REQUEST,
+            new ErrorBody("BAD_REQUEST", "query is required", Map.of("field", "query"))
+        );
+      }
+
       boolean returnCitations = (req.getOptions() == null) || req.getOptions().isReturnCitations();
       boolean returnDebug = (req.getOptions() != null) && req.getOptions().isReturnDebug();
+
+      OpenAiChatService.ChatResult chatResult = openAiChatService.answerQuestion(req.getQuery());
 
       List<RagQueryResponse.Citation> citations = List.of();
       if (returnCitations) {
@@ -45,7 +60,7 @@ public class RagController {
             new RagQueryResponse.Citation(
                 docId,
                 "demo-doc#1",
-                "(stub) This is a placeholder citation chunk returned by Java backend.",
+                "(stub) Placeholder citation.",
                 0.80,
                 Map.of("source", "stub")
             )
@@ -60,16 +75,16 @@ public class RagController {
           "java",
           (int) latencyMs,
           retrievedCount,
-          "stub",
-          null,
-          null,
-          null
+          chatResult.model(),
+          chatResult.promptTokens(),
+          chatResult.completionTokens(),
+          chatResult.totalTokens()
       );
 
-      Map<String, Object> debug = returnDebug ? Map.of("note", "stub response") : null;
+      Map<String, Object> debug = returnDebug ? Map.of("note", "openai response") : null;
 
       RagQueryResponse response = new RagQueryResponse(
-          "(stub) Java backend received: " + req.getQuery(),
+          chatResult.answer(),
           citations,
           metrics,
           debug
@@ -78,8 +93,19 @@ public class RagController {
       return response;
     } catch (RuntimeException ex) {
       status = "error";
-      errorCode = "INTERNAL_ERROR";
-      errorMessage = ex.toString();
+      if (ex instanceof ApiErrorException apiErrorException) {
+        ErrorBody body = apiErrorException.getErrorBody();
+        if (body != null) {
+          errorCode = body.getCode();
+          errorMessage = body.getMessage();
+        }
+      }
+      if (errorCode == null) {
+        errorCode = "INTERNAL_ERROR";
+      }
+      if (errorMessage == null) {
+        errorMessage = ex.toString();
+      }
       latencyMs = (System.nanoTime() - start) / 1_000_000;
       throw ex;
     } finally {
