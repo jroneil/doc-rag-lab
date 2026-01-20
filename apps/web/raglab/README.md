@@ -1,36 +1,52 @@
-.This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RagLab Web UI
 
-## Getting Started
+A clean, demo-ready Next.js 16 App Router UI for comparing the Python FastAPI and Java Spring Boot RAG backends.
 
-First, run the development server:
+## Requirements
+
+- Node.js 18+
+- One or both backends running locally
+
+## Environment variables
+
+Create a `.env.local` file in `apps/web/raglab`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+PY_API_BASE_URL=http://localhost:8000
+JAVA_API_BASE_URL=http://localhost:8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run the dev server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Example backend curl
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+curl -X POST http://localhost:8000/api/v1/rag/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is the warranty period for the product?",
+    "topK": 5,
+    "options": {
+      "returnCitations": true,
+      "returnDebug": false
+    }
+  }'
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Expected screen behavior
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Left pane: enter a question, choose backend, set `topK`, and toggle citations/debug.
+- Right pane: see the answer, metrics (latency, model, tokens), and citations if provided.
+- Errors from the backend show in a banner with the `{ error: { code, message, details } }` envelope.
 
-## Deploy on Vercel
+## Architecture note
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The browser only calls the Next.js `/api/rag` route handler, which proxies to the selected backend
+using the `PY_API_BASE_URL` or `JAVA_API_BASE_URL` environment variables.

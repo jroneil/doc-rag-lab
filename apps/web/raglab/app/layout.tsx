@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'RagLab',
-  description: 'RagLab UI',
+  description: 'RAG demo UI for Python + Java backends',
 };
 
 export default function RootLayout({
@@ -15,7 +15,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <main>{children}</main>
+        <div className="min-h-screen">
+          <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
