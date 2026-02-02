@@ -1,5 +1,5 @@
 
-<img src="raglab.png" alt="RagLab" width="400">
+<img src="raglab.png" alt="RagLab" >
 
 # RagLab
 
