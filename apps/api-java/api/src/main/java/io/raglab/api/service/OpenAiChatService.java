@@ -1,16 +1,16 @@
 package io.raglab.api.service;
 
 import com.openai.client.OpenAIClient;
-import com.openai.models.ChatCompletion;
-import com.openai.models.ChatCompletionCreateParams;
-import com.openai.models.ChatCompletionMessageParam;
-import com.openai.models.ChatCompletionUsage;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.ChatModel;
+import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.completions.CompletionUsage;
 import io.raglab.api.error.ApiErrorException;
 import io.raglab.api.error.ErrorBody;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -30,9 +30,9 @@ public class OpenAiChatService {
     if (apiKey == null || apiKey.isBlank()) {
       this.client = null;
     } else {
-      this.client = OpenAIClient.builder()
-          .apiKey(apiKey)
-          .build();
+      // Easiest “manual” config is still fromEnv(); it reads OPENAI_API_KEY, etc.
+      // If you prefer explicit apiKey only, you can keep builder(), but fromEnv() is the standard path.
+      this.client = OpenAIOkHttpClient.fromEnv();
     }
   }
 
@@ -47,15 +47,14 @@ public class OpenAiChatService {
     String prompt = "Answer the following question clearly and concisely:\n\n" + query;
 
     ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-        .model(model)
-        .messages(List.of(
-            ChatCompletionMessageParam.ofSystem(SYSTEM_PROMPT),
-            ChatCompletionMessageParam.ofUser(prompt)
-        ))
+        // If you want env-driven dynamic model strings, use ChatModel.of(model)
+        .model(ChatModel.of(model))
+        .addSystemMessage(SYSTEM_PROMPT)
+        .addUserMessage(prompt)
         .temperature(0.2)
         .build();
 
-    ChatCompletion response;
+    final ChatCompletion response;
     try {
       response = client.chat().completions().create(params);
     } catch (Exception ex) {
@@ -65,27 +64,27 @@ public class OpenAiChatService {
       );
     }
 
-    String answer = response.choices().get(0).message().content();
-    if (answer == null || answer.isBlank()) {
+    Optional<String> answer = response.choices().get(0).message().content();
+    if (answer == null || answer.isEmpty()) {
       throw new ApiErrorException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           new ErrorBody("AI_ERROR", "OpenAI response was invalid", null)
       );
     }
 
-    ChatCompletionUsage usage = response.usage();
-    Integer promptTokens = usage != null ? usage.promptTokens() : null;
-    Integer completionTokens = usage != null ? usage.completionTokens() : null;
-    Integer totalTokens = usage != null ? usage.totalTokens() : null;
+    CompletionUsage usage = response.usage().orElse(null);
+    Long promptTokens = usage != null ? usage.promptTokens() : null;
+    Long completionTokens = usage != null ? usage.completionTokens() : null;
+    Long totalTokens = usage != null ? usage.totalTokens() : null;
 
-    return new ChatResult(answer.trim(), model, promptTokens, completionTokens, totalTokens);
+    return new ChatResult(answer.get().trim(), model, promptTokens, completionTokens, totalTokens);
   }
 
   public record ChatResult(
       String answer,
       String model,
-      Integer promptTokens,
-      Integer completionTokens,
-      Integer totalTokens
-  ) {}
+      Long promptTokens,
+      Long completionTokens,
+      Long totalTokens
+  ) {}	
 }

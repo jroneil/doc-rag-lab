@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import type { BackendKey, ErrorEnvelope, RagQueryRequest, RagResponse } from '@/lib/types';
+import type { BackendKey, ErrorEnvelope, RagQueryRequest, RagResponse } from '../../../lib/types';
 
 const BACKEND_MAP: Record<BackendKey, string | undefined> = {
   python: process.env.PY_API_BASE_URL,
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       {
         code: 'UPSTREAM_ERROR',
         message: 'Unable to reach the selected backend.',
-        details: error instanceof Error ? error.message : String(error),
+        details: { message: error instanceof Error ? error.message : String(error) },
       },
       502,
     );

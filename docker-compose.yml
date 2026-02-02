@@ -1,7 +1,7 @@
  
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: raglab-db
     environment:
       POSTGRES_DB: raglab
@@ -41,6 +41,7 @@ services:
       SPRING_DATASOURCE_USERNAME: raglab
       SPRING_DATASOURCE_PASSWORD: raglab
       RAGLAB_BACKEND: java
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -52,11 +53,11 @@ services:
     build:
       context: ./apps/web/raglab
       args:
-        PY_API_BASE_URL: http://localhost/api/python
-        JAVA_API_BASE_URL: http://localhost/api/java
+        PY_API_BASE_URL: http://nginx/api/python
+        JAVA_API_BASE_URL: http://nginx/api/java
     environment:
-      PY_API_BASE_URL: http://localhost/api/python
-      JAVA_API_BASE_URL: http://localhost/api/java
+      PY_API_BASE_URL: http://nginx/api/python
+      JAVA_API_BASE_URL: http://nginx/api/java
     depends_on:
       - api-python
       - api-java

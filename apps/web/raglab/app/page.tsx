@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { BackendKey, ErrorEnvelope, RagResponse } from '../lib/types';
+import type { BackendKey, Citation, ErrorEnvelope, RagResponse } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const backendOptions: Array<{ label: string; value: BackendKey }> = [
@@ -93,7 +93,7 @@ export default function HomePage() {
       setError({
         code: 'UPSTREAM_ERROR',
         message: 'Failed to reach the Next.js API route.',
-        details: err instanceof Error ? err.message : String(err),
+        details: { errorMessage: err instanceof Error ? err.message : String(err) },
       });
     } finally {
       setIsLoading(false);
@@ -268,7 +268,7 @@ export default function HomePage() {
             <CardContent>
               {response?.citations && response.citations.length > 0 ? (
                 <div className="space-y-4">
-                  {response.citations.map((citation, index) => (
+                  {response.citations.map((citation: Citation, index: number) => (
                     <div key={`${citation.chunkId}-${index}`} className="rounded-lg border border-slate-200 p-3">
                       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         <span className="font-semibold text-slate-700">{citation.docId}</span>
