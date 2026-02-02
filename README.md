@@ -1,4 +1,6 @@
 
+<img src="raglab.png" alt="RagLab" width="400">
+
 # RagLab
 
 **RagLab** is an experimental lab for building, comparing, and evaluating **document-centric AI systems** (RAG and beyond) across **multiple backend implementations**.
